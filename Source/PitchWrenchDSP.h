@@ -138,10 +138,10 @@ public:
                 delay2 = minDelaySamples + (1.0f - phase2) * windowSamples;
             }
 
-            // 5. Calculate Hann window gains
-            // gain = 0.5 * (1 - cos(2*pi*phase))
-            const float gain1 = 0.5f * (1.0f - std::cos(phase1 * 2.0f * static_cast<float>(M_PI)));
-            const float gain2 = 0.5f * (1.0f - std::cos(phase2 * 2.0f * static_cast<float>(M_PI)));
+            // 5. Constant-power crossfade (elimina l'effetto tremolo)
+            // gain1^2 + gain2^2 = 1.0 garantito perché phase2 = phase1 + 0.5
+            const float gain1 = std::sin(phase1 * static_cast<float>(M_PI));
+            const float gain2 = std::sin(phase2 * static_cast<float>(M_PI));
 
             // 6. Read from delay lines
             double readPos1 = static_cast<double>(m_writePos) - delay1;
