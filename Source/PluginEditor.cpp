@@ -16,19 +16,19 @@ static auto getResourceProvider() {
         int size = 0;
         juce::String mimeType = "text/html";
         
-        if (url == "index.html" || url == "/") {
+        if (url == "/" || url.endsWith("index.html")) {
             data = PitchWrenchWebUIBinaryData::index_html;
             size = PitchWrenchWebUIBinaryData::index_htmlSize;
             mimeType = "text/html";
-        } else if (url == "style.css") {
+        } else if (url.endsWith("style.css")) {
             data = PitchWrenchWebUIBinaryData::style_css;
             size = PitchWrenchWebUIBinaryData::style_cssSize;
             mimeType = "text/css";
-        } else if (url == "app.js") {
+        } else if (url.endsWith("app.js")) {
             data = PitchWrenchWebUIBinaryData::app_js;
             size = PitchWrenchWebUIBinaryData::app_jsSize;
             mimeType = "text/javascript";
-        } else if (url == "logo.png") {
+        } else if (url.endsWith("logo.png")) {
             data = PitchWrenchWebUIBinaryData::logo_png;
             size = PitchWrenchWebUIBinaryData::logo_pngSize;
             mimeType = "image/png";
