@@ -1,0 +1,7 @@
+# Ignore build artifacts
+build/
+*.DS_Store
+.vscode/
+.idea/
+*.user
+*.jucer

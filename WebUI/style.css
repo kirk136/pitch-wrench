@@ -1,0 +1,428 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Pitch Wrench — style.css
+   Design: Industrial Flat — Gunmetal + Caution Orange
+   Pattern: Pulverine Audio (come PaperCUT)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+/* ── Design Tokens ──────────────────────────────────────────────────────────── */
+:root {
+  --bg:              #252729;
+  --bg-panel:        #2e3033;
+  --bg-raised:       #363a3d;
+  --bg-deep:         #1a1c1e;
+  --border:          #4a4e52;
+  --border-accent:   #ff8c00;
+
+  --orange:          #ff8c00;
+  --orange-dim:      rgba(255, 140, 0, 0.25);
+  --orange-glow:     rgba(255, 140, 0, 0.5);
+
+  --text:            #d8dadc;
+  --text-dim:        #737880;
+  --text-accent:     #ff8c00;
+
+  --knob-bg:         #1c1e20;
+  --knob-grip-a:     #323538;
+  --knob-grip-b:     #2c2f32;
+  --knob-center:     #282b2e;
+  --knob-marker:     #ff8c00;
+
+  --led-off:         #2a1800;
+  --led-on:          #ff8c00;
+  --led-glow:        rgba(255, 140, 0, 0.6);
+
+  --radius:          10px;
+  --radius-sm:       6px;
+  --font-main:       'Teko', sans-serif;
+  --font-mono:       'Share Tech Mono', monospace;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #111;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Plugin Shell ────────────────────────────────────────────────────────────── */
+.plugin-shell {
+  width: 640px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-main);
+  color: var(--text);
+  /* Texture metallo spazzolato via SVG pattern */
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.012) 2px,
+      rgba(255,255,255,0.012) 4px
+    );
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06) inset,
+    0 24px 60px rgba(0,0,0,0.7);
+  user-select: none;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px 12px;
+  background: var(--bg-deep);
+  border-bottom: 2px solid var(--border);
+  position: relative;
+}
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--orange-dim), transparent);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.logo-pitch  { font-size: 34px; font-weight: 700; color: var(--text); }
+.logo-wrench { font-size: 34px; font-weight: 700; color: var(--orange); }
+.logo-icon   { width: 24px; height: 24px; color: var(--orange); opacity: 0.8; margin-left: 2px; }
+
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.company-logo {
+  height: 24px;
+  object-fit: contain;
+  /* Il logo ha testo scuro su fondo chiaro, invertiamolo per il tema scuro */
+  filter: invert(1) opacity(0.7);
+  transition: opacity 0.2s;
+}
+.company-logo:hover {
+  opacity: 1;
+}
+.size-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+}
+.size-label { font-size: 14px; color: var(--orange); letter-spacing: 1px; }
+.size-select {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: 14px;
+  letter-spacing: 1px;
+  outline: none;
+  cursor: pointer;
+}
+.size-select option { background: var(--bg-deep); }
+
+/* ── Main Panel ──────────────────────────────────────────────────────────────── */
+.main-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 32px;
+  gap: 24px;
+  flex: 1;
+}
+
+/* ── Power Section ───────────────────────────────────────────────────────────── */
+.power-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.power-label {
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+}
+
+.power-btn {
+  position: relative;
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: radial-gradient(circle at 40% 35%, #444, #1a1c1e);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.power-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.power-btn.active .power-ring {
+  border-color: var(--orange);
+  box-shadow: 0 0 14px var(--orange-glow), inset 0 0 8px var(--orange-dim);
+}
+.power-btn.active {
+  border-color: var(--orange);
+}
+.power-icon {
+  width: 30px; height: 30px;
+  color: var(--text-dim);
+  transition: color 0.2s;
+  position: relative; z-index: 1;
+}
+.power-btn.active .power-icon { color: var(--orange); }
+.power-btn:hover .power-icon  { color: var(--text); }
+
+.led-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.led {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--led-off);
+  border: 1px solid #111;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.led.active {
+  background: var(--led-on);
+  box-shadow: 0 0 8px var(--led-glow), 0 0 16px var(--orange-dim);
+}
+.led-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-dim);
+  transition: color 0.2s;
+  min-width: 22px;
+}
+.led.active ~ .led-label { color: var(--orange); }
+
+/* ── Knob Section ─────────────────────────────────────────────────────────────── */
+.knob-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+.knob-label {
+  font-size: 20px;
+  letter-spacing: 4px;
+  color: var(--text-dim);
+}
+
+.knob-rig {
+  position: relative;
+  width: 220px; height: 220px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+}
+.knob-rig:active { cursor: grabbing; }
+
+.tick-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+.knob-outer {
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  background: var(--knob-bg);
+  border: 2px solid #111;
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.8),
+    0 2px 4px rgba(0,0,0,0.6),
+    inset 0 2px 2px rgba(255,255,255,0.07);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* Zigrinatura: pattern a settori alternati */
+.knob-inner {
+  width: 138px; height: 138px;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      var(--knob-grip-a) 0deg 7.2deg,
+      var(--knob-grip-b) 7.2deg 14.4deg
+    );
+  border: 1.5px solid #111;
+  box-shadow: inset 0 0 14px rgba(0,0,0,0.8);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: transform 0.0s linear; /* aggiornato via JS */
+}
+
+.knob-center {
+  position: absolute;
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #3a3d40, #1c1e20);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.06);
+  pointer-events: none;
+}
+
+.knob-marker {
+  position: absolute;
+  top: 10px; left: 50%;
+  transform: translateX(-50%);
+  width: 5px; height: 24px;
+  background: var(--orange);
+  border-radius: 3px;
+  box-shadow: 0 0 8px var(--orange-glow);
+}
+
+/* ── Value Display ─────────────────────────────────────────────────────────────── */
+.value-display {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.7);
+  min-width: 140px;
+  justify-content: center;
+}
+.val-bracket { color: var(--border); }
+.val-number  { color: var(--orange); font-size: 32px; min-width: 50px; text-align: center; }
+.val-unit    { color: var(--text-dim); font-size: 16px; }
+
+/* ── Right Section (Fine-tune & Mix) ────────────────────────────────────────── */
+.right-section {
+  flex: 0 0 auto;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+}
+.small-knobs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+.small-knob-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.small-knob-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+.small-knob-rig {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.8);
+  cursor: grab;
+}
+.small-knob-rig:active { cursor: grabbing; }
+
+.small-knob-outer {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--bg-grad);
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.small-knob-inner {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2a2c30 0%, #1a1c1e 100%);
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.05), inset 0 -2px 4px rgba(0,0,0,0.8);
+  /* The rotation will be applied here */
+  transform: rotate(-140deg);
+}
+
+.small-knob-marker {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 12px;
+  background: var(--orange);
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--orange-glow);
+}
+
+.small-val-display {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--orange);
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  min-width: 50px;
+  text-align: center;
+}
+
+.version-tag {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  opacity: 0.4;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────────── */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 32px;
+  background: var(--bg-deep);
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+.footer-range  { color: var(--text-dim); }
+.footer-center { color: var(--text-dim); letter-spacing: 4px; }

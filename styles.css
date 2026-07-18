@@ -1,0 +1,319 @@
+@import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;600&family=Share+Tech+Mono&display=swap');
+
+:root {
+    --bg-dark: #2a2c2e;
+    --bg-panel: #3a3c3f;
+    --accent-orange: #ff8c00;
+    --accent-orange-dim: rgba(255, 140, 0, 0.3);
+    --text-main: #e0e0e0;
+    --text-dark: #1a1a1a;
+    --knob-dark: #1e2022;
+    --border-light: #5a5c5f;
+    --shadow-dark: rgba(0,0,0,0.5);
+}
+
+* {
+    box-sizing: border-box;
+    user-select: none;
+}
+
+body {
+    background-color: #1a1a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Teko', sans-serif;
+    color: var(--text-main);
+}
+
+.plugin-container {
+    background: linear-gradient(135deg, #444 0%, #2a2c2e 100%);
+    border: 2px solid #555;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.8), inset 0 2px 2px rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    transition: transform 0.3s ease;
+    transform-origin: center;
+}
+
+/* Size Classes */
+.size-small { transform: scale(0.75); }
+.size-medium { transform: scale(1); }
+.size-large { transform: scale(1.25); }
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--border-light);
+    padding-bottom: 10px;
+}
+
+.logo {
+    font-size: 42px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.logo .accent {
+    color: var(--accent-orange);
+}
+
+.dropdown-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-dark);
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--accent-orange);
+}
+
+.dropdown-container label {
+    font-size: 18px;
+    color: var(--accent-orange);
+}
+
+select {
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    font-family: 'Teko', sans-serif;
+    font-size: 18px;
+    outline: none;
+    cursor: pointer;
+}
+
+select option {
+    background: var(--bg-dark);
+    color: var(--text-main);
+}
+
+/* Main Body */
+.main-body {
+    display: flex;
+    gap: 20px;
+    height: 300px;
+}
+
+.panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.power-panel, .extra-panel {
+    flex: 1;
+    justify-content: center;
+}
+
+.knob-panel {
+    flex: 2;
+    justify-content: space-between;
+    position: relative;
+}
+
+.panel-label {
+    font-size: 24px;
+    letter-spacing: 1px;
+    color: #aaa;
+}
+
+/* Power Toggle */
+.power-label {
+    font-size: 24px;
+    margin-bottom: 15px;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--knob-dark);
+    transition: .4s;
+    border-radius: 34px;
+    border: 2px solid #222;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 2px;
+    bottom: 2px;
+    background: linear-gradient(to bottom, #777, #444);
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+input:checked + .slider {
+    background-color: var(--accent-orange-dim);
+    border-color: var(--accent-orange);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+    background: linear-gradient(to bottom, #ddd, #888);
+}
+
+.status-indicator {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+}
+
+.led {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #333;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
+    transition: all 0.3s ease;
+}
+
+.led.active {
+    background-color: var(--accent-orange);
+    box-shadow: 0 0 10px var(--accent-orange), inset 0 1px 2px rgba(255,255,255,0.5);
+}
+
+#power-status-text {
+    color: var(--accent-orange);
+}
+
+/* Knob */
+.knob-container {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.tick-marks {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.tick {
+    position: absolute;
+    width: 2px;
+    height: 8px;
+    background-color: #777;
+    left: 50%;
+    transform-origin: 50% 90px; /* 180/2 */
+}
+
+.tick.major {
+    height: 14px;
+    width: 3px;
+    background-color: var(--accent-orange);
+}
+
+.tick-label {
+    position: absolute;
+    color: var(--accent-orange);
+    font-family: 'Teko', sans-serif;
+    font-size: 16px;
+    transform: translate(-50%, -50%);
+}
+
+.knob-base {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #111, #333);
+    position: relative;
+    box-shadow: 0 10px 15px var(--shadow-dark), inset 0 2px 2px rgba(255,255,255,0.1);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.knob-dial {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: repeating-conic-gradient(
+        from 0deg,
+        #444 0deg 5deg,
+        #333 5deg 10deg
+    );
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+    position: relative;
+    cursor: grab;
+}
+
+.knob-dial:active {
+    cursor: grabbing;
+}
+
+.knob-pointer {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 25px;
+    background-color: var(--accent-orange);
+    border-radius: 3px;
+    box-shadow: 0 0 5px var(--accent-orange);
+}
+
+/* Value Display */
+.value-display {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 28px;
+    background: #111;
+    padding: 5px 20px;
+    border-radius: 4px;
+    color: var(--accent-orange);
+    border: 1px solid #333;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brackets {
+    color: #555;
+}
+
+.wrench-icon {
+    opacity: 0.3;
+}
