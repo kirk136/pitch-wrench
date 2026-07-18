@@ -138,10 +138,15 @@ public:
                 delay2 = minDelaySamples + (1.0f - phase2) * windowSamples;
             }
 
-            // 5. Constant-power crossfade (elimina l'effetto tremolo)
-            // gain1^2 + gain2^2 = 1.0 garantito perché phase2 = phase1 + 0.5
-            const float gain1 = std::sin(phase1 * static_cast<float>(M_PI));
-            const float gain2 = std::sin(phase2 * static_cast<float>(M_PI));
+            // 5. Constant-power crossfade con derivata zero ai bordi (elimina il "thump" dell'elicottero)
+            const float u1 = std::pow(std::sin(phase1 * static_cast<float>(M_PI)), 2.0f);
+            const float u2 = std::pow(std::sin(phase2 * static_cast<float>(M_PI)), 2.0f);
+            
+            const float P1 = 3.0f * u1 * u1 - 2.0f * u1 * u1 * u1;
+            const float P2 = 3.0f * u2 * u2 - 2.0f * u2 * u2 * u2;
+            
+            const float gain1 = std::sqrt(P1);
+            const float gain2 = std::sqrt(P2);
 
             // 6. Read from delay lines
             double readPos1 = static_cast<double>(m_writePos) - delay1;
