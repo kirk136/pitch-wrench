@@ -24,8 +24,6 @@ namespace PitchWrench {
 static constexpr float kMaxBufferMs       = 35.0f;    // 35ms massima latenza/finestra
 static constexpr int   kMaxSampleRate     = 192000;
 static constexpr int   kMaxBufferSamples  = static_cast<int>(kMaxBufferMs * 192.0f) + 100;
-static constexpr int   kCrossfadeMin      = 64;       // campioni — ~1.4ms @ 44.1kHz
-static constexpr int   kCrossfadeMax      = 256;      // campioni — ~5.8ms @ 44.1kHz
 static constexpr float kSmoothTimeMs      = 8.0f;     // smoothing pitch ratio (ms)
 static constexpr float kBypassFadeMs      = 3.0f;     // crossfade bypass (ms)
 
@@ -43,19 +41,6 @@ public:
         m_buffer.assign(bufSize, 0.0f);
         m_bufferSize = bufSize;
 
-        // Calcola dimensione crossfade adattiva al sample rate
-        // ~3ms, clamped tra kCrossfadeMin e kCrossfadeMax
-        m_crossfadeLength = std::clamp(
-            static_cast<int>(sampleRate * 0.003),
-            kCrossfadeMin, kCrossfadeMax);
-
-        // Pre-calcola finestra Hann per il crossfade
-        m_hannWindow.resize(m_crossfadeLength);
-        for (int i = 0; i < m_crossfadeLength; ++i) {
-            const float phase = static_cast<float>(i) / (m_crossfadeLength - 1);
-            m_hannWindow[i] = 0.5f * (1.0f - std::cos(static_cast<float>(M_PI) * phase));
-        }
-
         // Coefficiente smoothing one-pole per il pitch ratio
         const float smoothSamples = static_cast<float>(sampleRate * kSmoothTimeMs * 0.001);
         m_smoothCoeff = std::exp(-1.0f / smoothSamples);
@@ -72,17 +57,7 @@ public:
     {
         std::fill(m_buffer.begin(), m_buffer.end(), 0.0f);
         m_writePos = 0;
-
-        // Le due testine partono con una distanza pari a metà buffer
-        // così non entrano mai in collisione al reset
-        m_readPosA = 0.0;
-        m_readPosB = static_cast<double>(m_bufferSize / 2);
-
-        m_gainA = 1.0f;   // testa A è quella attiva all'inizio
-        m_gainB = 0.0f;
-        m_activeHead = 0;
-        m_crossfadeCounter = 0;
-        m_inCrossfade = false;
+        m_phase = 0.0f;
 
         m_currentPitchRatio = 1.0f;
         m_bypassGain = 1.0f;
@@ -131,43 +106,60 @@ public:
             return;
         }
 
+        const float windowSamples = static_cast<float>(m_sampleRate * kMaxBufferMs * 0.001f);
+        const float minDelaySamples = 4.0f; // Safe margin for cubic interpolation
+
         for (int i = 0; i < numSamples; ++i) {
-            // 1. Scrivi campione corrente nel buffer circolare
+            // 1. Write current sample to circular buffer
             m_buffer[m_writePos] = input[i];
 
-            // 2. Smooth del pitch ratio (one-pole, realtime safe)
+            // 2. Smooth pitch ratio
             m_currentPitchRatio = m_smoothCoeff * m_currentPitchRatio
                                  + (1.0f - m_smoothCoeff) * m_targetPitchRatio;
 
-            // 3. Leggi le due testine con interpolazione Hermite cubica
-            const float outA = readInterpolated(m_readPosA);
-            const float outB = readInterpolated(m_readPosB);
+            // 3. Calculate LFO rate and phase increment
+            const float rate = 1.0f - m_currentPitchRatio;
+            const float phaseInc = std::abs(rate) / windowSamples;
 
-            // 4. Mix pesato (crossfade o steady-state)
-            float wet = m_gainA * outA + m_gainB * outB;
+            m_phase += phaseInc;
+            if (m_phase >= 1.0f) m_phase -= 1.0f;
 
-            // 5. Aggiorna crossfade se in corso
-            if (m_inCrossfade) {
-                updateCrossfade();
+            const float phase1 = m_phase;
+            float phase2 = m_phase + 0.5f;
+            if (phase2 >= 1.0f) phase2 -= 1.0f;
+
+            // 4. Calculate delays for both taps
+            float delay1, delay2;
+            if (rate >= 0.0f) { // Pitch Down or Unison
+                delay1 = minDelaySamples + phase1 * windowSamples;
+                delay2 = minDelaySamples + phase2 * windowSamples;
+            } else {            // Pitch Up (sawtooth goes downwards)
+                delay1 = minDelaySamples + (1.0f - phase1) * windowSamples;
+                delay2 = minDelaySamples + (1.0f - phase2) * windowSamples;
             }
 
-            // 6. Avanza le testine di lettura (velocità = pitchRatio)
-            m_readPosA += m_currentPitchRatio;
-            m_readPosB += m_currentPitchRatio;
+            // 5. Calculate Hann window gains
+            // gain = 0.5 * (1 - cos(2*pi*phase))
+            const float gain1 = 0.5f * (1.0f - std::cos(phase1 * 2.0f * static_cast<float>(M_PI)));
+            const float gain2 = 0.5f * (1.0f - std::cos(phase2 * 2.0f * static_cast<float>(M_PI)));
 
-            // 7. Wrap-around circolare
-            while (m_readPosA >= m_bufferSize) m_readPosA -= m_bufferSize;
-            while (m_readPosA <  0.0)          m_readPosA += m_bufferSize;
-            while (m_readPosB >= m_bufferSize) m_readPosB -= m_bufferSize;
-            while (m_readPosB <  0.0)          m_readPosB += m_bufferSize;
+            // 6. Read from delay lines
+            double readPos1 = static_cast<double>(m_writePos) - delay1;
+            if (readPos1 < 0.0) readPos1 += m_bufferSize;
+            
+            double readPos2 = static_cast<double>(m_writePos) - delay2;
+            if (readPos2 < 0.0) readPos2 += m_bufferSize;
 
-            // 8. Avanza write pointer
+            const float out1 = readInterpolated(readPos1);
+            const float out2 = readInterpolated(readPos2);
+
+            // 7. Mix the two taps
+            float wet = out1 * gain1 + out2 * gain2;
+
+            // 8. Advance write pointer
             m_writePos = (m_writePos + 1) % m_bufferSize;
 
-            // 9. Controlla se serve un nuovo crossfade
-            checkCollision();
-
-            // 10. Mix and Bypass smooth (crossfade dry/wet per enable/disable)
+            // 9. Mix and Bypass smooth
             m_mixLevel = m_smoothCoeff * m_mixLevel + (1.0f - m_smoothCoeff) * m_targetMix;
             m_bypassGain = m_bypassSmoothCoeff * m_bypassGain
                           + (1.0f - m_bypassSmoothCoeff) * m_targetBypassGain;
@@ -180,8 +172,6 @@ public:
 private:
 
     // ── Interpolazione Hermite cubica ─────────────────────────────────────────
-    // Migliore qualità di interpolazione lineare, più leggera del sinc.
-    // Ideale per pitch shifting di segnali chitarra/basso.
     inline float hermite(float y0, float y1, float y2, float y3, float t) const
     {
         const float c0 = y1;
@@ -196,7 +186,6 @@ private:
         const int    i0 = static_cast<int>(pos);
         const float  t  = static_cast<float>(pos - i0);
 
-        // Leggi 4 campioni con wrap circolare (costanti, no branch variabile)
         const int n = m_bufferSize;
         const float y0 = m_buffer[((i0 - 1) % n + n) % n];
         const float y1 = m_buffer[  i0             % n       ];
@@ -206,107 +195,13 @@ private:
         return hermite(y0, y1, y2, y3, t);
     }
 
-    // ── Logica di collisione e crossfade ──────────────────────────────────────
-    //
-    // "Collisione" = la testina attiva si avvicina troppo al write pointer.
-    // Zona di pericolo: meno di (crossfadeLength * 2) campioni di distanza.
-    // Quando avviene, triggeriamo il crossfade verso l'altra testina.
-
-    void checkCollision()
-    {
-        if (m_inCrossfade) return;  // già in crossfade, aspetta che finisca
-
-        const double activePos = (m_activeHead == 0) ? m_readPosA : m_readPosB;
-
-        // Distanza dalla testina attiva al write pointer (circolare)
-        double dist = static_cast<double>(m_writePos) - activePos;
-        if (dist < 0.0) dist += m_bufferSize;
-
-        // Zona di pericolo: collisione imminente (pitch up) o sorpasso (pitch down)
-        const double dangerZone = m_crossfadeLength * 2.0;
-
-        bool collisionIminent = false;
-
-        if (m_currentPitchRatio > 1.0f) {
-            // Pitch UP: la testina si avvicina velocemente al write pointer
-            // Collisione se dist < dangerZone
-            collisionIminent = (dist < dangerZone);
-        } else if (m_currentPitchRatio < 1.0f) {
-            // Pitch DOWN: la testina rallenta, il write pointer la supera
-            // Collisione se dist > bufferSize - dangerZone
-            collisionIminent = (dist > m_bufferSize - dangerZone);
-        }
-
-        if (collisionIminent) {
-            triggerCrossfade();
-        }
-    }
-
-    void triggerCrossfade()
-    {
-        // Riposiziona la testina inattiva a metà buffer di distanza
-        // dalla testina attiva, nel punto "sicuro"
-        if (m_activeHead == 0) {
-            // A è attiva, riposiziona B
-            m_readPosB = m_readPosA + static_cast<double>(m_bufferSize / 2);
-            while (m_readPosB >= m_bufferSize) m_readPosB -= m_bufferSize;
-        } else {
-            // B è attiva, riposiziona A
-            m_readPosA = m_readPosB + static_cast<double>(m_bufferSize / 2);
-            while (m_readPosA >= m_bufferSize) m_readPosA -= m_bufferSize;
-        }
-
-        m_inCrossfade = true;
-        m_crossfadeCounter = 0;
-    }
-
-    void updateCrossfade()
-    {
-        const int n = m_crossfadeCounter;
-        const int L = m_crossfadeLength;
-
-        if (n >= L) {
-            // Crossfade completato: switcha la testa attiva
-            m_inCrossfade = false;
-            m_crossfadeCounter = 0;
-            m_activeHead = 1 - m_activeHead;
-            // Assicura gain puliti
-            m_gainA = (m_activeHead == 0) ? 1.0f : 0.0f;
-            m_gainB = (m_activeHead == 1) ? 1.0f : 0.0f;
-            return;
-        }
-
-        // Hann window: la testa che entra sale, quella che esce scende
-        const float fadeIn  = m_hannWindow[n];
-        const float fadeOut = m_hannWindow[L - 1 - n];
-
-        if (m_activeHead == 0) {
-            // A è attiva e sta uscendo, B sta entrando
-            m_gainA = fadeOut;
-            m_gainB = fadeIn;
-        } else {
-            // B è attiva e sta uscendo, A sta entrando
-            m_gainB = fadeOut;
-            m_gainA = fadeIn;
-        }
-
-        ++m_crossfadeCounter;
-    }
-
     // ── State ─────────────────────────────────────────────────────────────────
     std::vector<float>  m_buffer;
     std::vector<float>  m_hannWindow;
     int                 m_bufferSize        = 0;
     int                 m_writePos          = 0;
 
-    double              m_readPosA          = 0.0;
-    double              m_readPosB          = 0.0;
-    float               m_gainA             = 1.0f;
-    float               m_gainB             = 0.0f;
-    int                 m_activeHead        = 0;    // 0=A, 1=B
-    bool                m_inCrossfade       = false;
-    int                 m_crossfadeCounter  = 0;
-    int                 m_crossfadeLength   = 64;
+    float               m_phase             = 0.0f; // LFO Phase (0.0 to 1.0)
 
     float               m_targetPitchRatio  = 1.0f;
     float               m_currentPitchRatio = 1.0f;
