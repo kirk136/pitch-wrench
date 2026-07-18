@@ -21,11 +21,11 @@
 namespace PitchWrench {
 
 // ── Costanti ──────────────────────────────────────────────────────────────────
-static constexpr int   kMaxBufferSeconds  = 1;        // 1s a 192kHz = abbondante
+static constexpr float kMaxBufferMs       = 35.0f;    // 35ms massima latenza/finestra
 static constexpr int   kMaxSampleRate     = 192000;
-static constexpr int   kMaxBufferSamples  = kMaxBufferSeconds * kMaxSampleRate;
-static constexpr int   kCrossfadeMin      = 32;       // campioni — 0.7ms @ 44.1kHz
-static constexpr int   kCrossfadeMax      = 256;      // campioni — 5.8ms @ 44.1kHz
+static constexpr int   kMaxBufferSamples  = static_cast<int>(kMaxBufferMs * 192.0f) + 100;
+static constexpr int   kCrossfadeMin      = 64;       // campioni — ~1.4ms @ 44.1kHz
+static constexpr int   kCrossfadeMax      = 256;      // campioni — ~5.8ms @ 44.1kHz
 static constexpr float kSmoothTimeMs      = 8.0f;     // smoothing pitch ratio (ms)
 static constexpr float kBypassFadeMs      = 3.0f;     // crossfade bypass (ms)
 
@@ -39,7 +39,7 @@ public:
         m_sampleRate = sampleRate;
 
         // Alloca buffer circolare — unica allocazione consentita
-        const int bufSize = static_cast<int>(sampleRate * kMaxBufferSeconds) + 8;
+        const int bufSize = static_cast<int>(sampleRate * kMaxBufferMs * 0.001f) + 8;
         m_buffer.assign(bufSize, 0.0f);
         m_bufferSize = bufSize;
 
