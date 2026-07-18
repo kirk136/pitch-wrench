@@ -21,24 +21,31 @@
 namespace PitchWrench {
 
 // ── Costanti ──────────────────────────────────────────────────────────────────
-static constexpr float kMaxBufferMs       = 35.0f;    // 35ms massima latenza/finestra
+static constexpr float kMaxBufferMs       = 80.0f;    // 80ms max buffer to allow safe searching
 static constexpr int   kMaxSampleRate     = 192000;
-static constexpr int   kMaxBufferSamples  = static_cast<int>(kMaxBufferMs * 192.0f) + 100;
 static constexpr float kSmoothTimeMs      = 8.0f;     // smoothing pitch ratio (ms)
 static constexpr float kBypassFadeMs      = 3.0f;     // crossfade bypass (ms)
+
+// WSOLA Parameters
+static constexpr float kNominalDelayMs    = 35.0f; 
+static constexpr float kMinDelayMs        = 10.0f;
+static constexpr float kMaxDelayMs        = 60.0f;
+static constexpr float kSearchWindowMs    = 15.0f; // +/- 15ms
+static constexpr float kTemplateMs        = 10.0f;
+static constexpr float kSpliceMs          = 5.0f;
 
 // ─────────────────────────────────────────────────────────────────────────────
 class PitchWrenchDSP {
 public:
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
-    void prepare(double sampleRate, int maxBlockSize)
+    void prepare(double sampleRate, int /*maxBlockSize*/)
     {
         m_sampleRate = sampleRate;
 
         // Alloca buffer circolare — unica allocazione consentita
         const int bufSize = static_cast<int>(sampleRate * kMaxBufferMs * 0.001f) + 8;
-        m_buffer.assign(bufSize, 0.0f);
+        m_buffer.assign(static_cast<size_t>(bufSize), 0.0f);
         m_bufferSize = bufSize;
 
         // Coefficiente smoothing one-pole per il pitch ratio
@@ -57,10 +64,15 @@ public:
     {
         std::fill(m_buffer.begin(), m_buffer.end(), 0.0f);
         m_writePos = 0;
-        m_phase = 0.0f;
+        
+        m_readPos = 0.0;
+        m_splicePos = 0.0;
+        m_inSplice = false;
+        m_splicePhase = 0.0f;
 
         m_currentPitchRatio = 1.0f;
         m_bypassGain = 1.0f;
+        m_mixLevel = m_targetMix;
     }
 
     // ── Parametri ─────────────────────────────────────────────────────────────
@@ -97,74 +109,72 @@ private:
     }
 
     // ── Process — REALTIME SAFE ───────────────────────────────────────────────
-    // Nessuna allocazione. Nessun lock. Nessun I/O. Deterministico.
 public:
     void process(const float* input, float* output, int numSamples)
     {
         if (!m_prepared) {
-            std::memset(output, 0, sizeof(float) * numSamples);
+            std::memset(output, 0, sizeof(float) * static_cast<size_t>(numSamples));
             return;
         }
 
-        const float windowSamples = static_cast<float>(m_sampleRate * kMaxBufferMs * 0.001f);
-        const float minDelaySamples = 4.0f; // Safe margin for cubic interpolation
+        const double nominalDelaySamples = m_sampleRate * static_cast<double>(kNominalDelayMs) * 0.001;
+        const double minDelaySamples     = m_sampleRate * static_cast<double>(kMinDelayMs) * 0.001;
+        const double maxDelaySamples     = m_sampleRate * static_cast<double>(kMaxDelayMs) * 0.001;
+        const double searchWindowSamples = m_sampleRate * static_cast<double>(kSearchWindowMs) * 0.001;
+        const int    templateSamples     = static_cast<int>(m_sampleRate * static_cast<double>(kTemplateMs) * 0.001);
+        const float  splicePhaseInc      = 1.0f / static_cast<float>(m_sampleRate * static_cast<double>(kSpliceMs) * 0.001);
 
         for (int i = 0; i < numSamples; ++i) {
-            // 1. Write current sample to circular buffer
-            m_buffer[m_writePos] = input[i];
+            // 1. Write to buffer
+            m_buffer[static_cast<size_t>(m_writePos)] = input[i];
 
             // 2. Smooth pitch ratio
             m_currentPitchRatio = m_smoothCoeff * m_currentPitchRatio
                                  + (1.0f - m_smoothCoeff) * m_targetPitchRatio;
 
-            // 3. Calculate LFO rate and phase increment
-            const float rate = 1.0f - m_currentPitchRatio;
-            const float phaseInc = std::abs(rate) / windowSamples;
+            // 3. Advance read positions
+            m_readPos += m_currentPitchRatio;
+            if (m_readPos >= m_bufferSize) m_readPos -= m_bufferSize;
+            
+            if (m_inSplice) {
+                m_splicePos += m_currentPitchRatio;
+                if (m_splicePos >= m_bufferSize) m_splicePos -= m_bufferSize;
+                
+                m_splicePhase += splicePhaseInc;
+                if (m_splicePhase >= 1.0f) {
+                    m_inSplice = false;
+                    m_readPos = m_splicePos;
+                }
+            } else {
+                // Check boundaries to trigger splice
+                double delay = static_cast<double>(m_writePos) - m_readPos;
+                if (delay < 0.0) delay += m_bufferSize;
 
-            m_phase += phaseInc;
-            if (m_phase >= 1.0f) m_phase -= 1.0f;
+                if (delay < minDelaySamples || delay > maxDelaySamples) {
+                    double targetReadPos = static_cast<double>(m_writePos) - nominalDelaySamples;
+                    if (targetReadPos < 0.0) targetReadPos += m_bufferSize;
 
-            const float phase1 = m_phase;
-            float phase2 = m_phase + 0.5f;
-            if (phase2 >= 1.0f) phase2 -= 1.0f;
-
-            // 4. Calculate delays for both taps
-            float delay1, delay2;
-            if (rate >= 0.0f) { // Pitch Down or Unison
-                delay1 = minDelaySamples + phase1 * windowSamples;
-                delay2 = minDelaySamples + phase2 * windowSamples;
-            } else {            // Pitch Up (sawtooth goes downwards)
-                delay1 = minDelaySamples + (1.0f - phase1) * windowSamples;
-                delay2 = minDelaySamples + (1.0f - phase2) * windowSamples;
+                    m_splicePos = findBestSplicePos(m_readPos, targetReadPos, searchWindowSamples, templateSamples);
+                    m_inSplice = true;
+                    m_splicePhase = 0.0f;
+                }
             }
 
-            // 5. Constant-power crossfade con derivata zero ai bordi (elimina il "thump" dell'elicottero)
-            const float u1 = std::pow(std::sin(phase1 * static_cast<float>(M_PI)), 2.0f);
-            const float u2 = std::pow(std::sin(phase2 * static_cast<float>(M_PI)), 2.0f);
-            
-            const float P1 = 3.0f * u1 * u1 - 2.0f * u1 * u1 * u1;
-            const float P2 = 3.0f * u2 * u2 - 2.0f * u2 * u2 * u2;
-            
-            const float gain1 = std::sqrt(P1);
-            const float gain2 = std::sqrt(P2);
+            // 4. Read and interpolate
+            float out1 = readInterpolated(m_readPos);
+            float wet = out1;
 
-            // 6. Read from delay lines
-            double readPos1 = static_cast<double>(m_writePos) - delay1;
-            if (readPos1 < 0.0) readPos1 += m_bufferSize;
-            
-            double readPos2 = static_cast<double>(m_writePos) - delay2;
-            if (readPos2 < 0.0) readPos2 += m_bufferSize;
+            if (m_inSplice) {
+                float out2 = readInterpolated(m_splicePos);
+                // Hann window crossfade (constant amplitude) for perfectly matched waveforms
+                float crossfadeGain = 0.5f * (1.0f - std::cos(m_splicePhase * static_cast<float>(M_PI)));
+                wet = out1 * (1.0f - crossfadeGain) + out2 * crossfadeGain;
+            }
 
-            const float out1 = readInterpolated(readPos1);
-            const float out2 = readInterpolated(readPos2);
-
-            // 7. Mix the two taps
-            float wet = out1 * gain1 + out2 * gain2;
-
-            // 8. Advance write pointer
+            // 5. Advance write pointer
             m_writePos = (m_writePos + 1) % m_bufferSize;
 
-            // 9. Mix and Bypass smooth
+            // 6. Mix and Bypass smooth
             m_mixLevel = m_smoothCoeff * m_mixLevel + (1.0f - m_smoothCoeff) * m_targetMix;
             m_bypassGain = m_bypassSmoothCoeff * m_bypassGain
                           + (1.0f - m_bypassSmoothCoeff) * m_targetBypassGain;
@@ -175,6 +185,72 @@ public:
     }
 
 private:
+
+    // ── WSOLA Pattern Matching ───────────────────────────────────────────────
+    double findBestSplicePos(double currentReadPos, double targetReadPos, double searchWindowSamples, int templateSamples) const
+    {
+        double bestPos = targetReadPos;
+        float minError = 1e9f;
+
+        const int step = 2; // Decimation per le performance
+        const int startOffset = -static_cast<int>(searchWindowSamples);
+        const int endOffset = static_cast<int>(searchWindowSamples);
+
+        const int currInt = static_cast<int>(currentReadPos);
+        const int targetInt = static_cast<int>(targetReadPos);
+        const int n = m_bufferSize;
+
+        for (int offset = startOffset; offset <= endOffset; offset += step) {
+            int candInt = targetInt + offset;
+            float error = 0.0f;
+
+            // Controlliamo il passato (k > 0 va indietro nel tempo)
+            // Entrambe le testine hanno registrato questo audio.
+            for (int k = 0; k < templateSamples; k += step) {
+                int idxCurr = (currInt - k) % n;
+                if (idxCurr < 0) idxCurr += n;
+                
+                int idxCand = (candInt - k) % n;
+                if (idxCand < 0) idxCand += n;
+
+                error += std::abs(m_buffer[static_cast<size_t>(idxCurr)] - m_buffer[static_cast<size_t>(idxCand)]);
+                if (error >= minError) break; // early exit optimization
+            }
+
+            if (error < minError) {
+                minError = error;
+                bestPos = static_cast<double>(candInt);
+            }
+        }
+        
+        // Refine di precisione attorno al punto migliore
+        int refineStart = static_cast<int>(bestPos) - step;
+        int refineEnd = static_cast<int>(bestPos) + step;
+        
+        for (int candInt = refineStart; candInt <= refineEnd; ++candInt) {
+            float error = 0.0f;
+            for (int k = 0; k < templateSamples; ++k) {
+                int idxCurr = (currInt - k) % n;
+                if (idxCurr < 0) idxCurr += n;
+                
+                int idxCand = (candInt - k) % n;
+                if (idxCand < 0) idxCand += n;
+
+                error += std::abs(m_buffer[static_cast<size_t>(idxCurr)] - m_buffer[static_cast<size_t>(idxCand)]);
+                if (error >= minError) break;
+            }
+            if (error < minError) {
+                minError = error;
+                bestPos = static_cast<double>(candInt);
+            }
+        }
+
+        // Mantieni bestPos nel range del buffer
+        bestPos = std::fmod(bestPos, static_cast<double>(n));
+        if (bestPos < 0.0) bestPos += n;
+
+        return bestPos;
+    }
 
     // ── Interpolazione Hermite cubica ─────────────────────────────────────────
     inline float hermite(float y0, float y1, float y2, float y3, float t) const
@@ -192,21 +268,23 @@ private:
         const float  t  = static_cast<float>(pos - i0);
 
         const int n = m_bufferSize;
-        const float y0 = m_buffer[((i0 - 1) % n + n) % n];
-        const float y1 = m_buffer[  i0             % n       ];
-        const float y2 = m_buffer[ (i0 + 1)        % n       ];
-        const float y3 = m_buffer[ (i0 + 2)        % n       ];
+        const float y0 = m_buffer[static_cast<size_t>(((i0 - 1) % n + n) % n)];
+        const float y1 = m_buffer[static_cast<size_t>(  i0             % n       )];
+        const float y2 = m_buffer[static_cast<size_t>( (i0 + 1)        % n       )];
+        const float y3 = m_buffer[static_cast<size_t>( (i0 + 2)        % n       )];
 
         return hermite(y0, y1, y2, y3, t);
     }
 
     // ── State ─────────────────────────────────────────────────────────────────
     std::vector<float>  m_buffer;
-    std::vector<float>  m_hannWindow;
     int                 m_bufferSize        = 0;
     int                 m_writePos          = 0;
 
-    float               m_phase             = 0.0f; // LFO Phase (0.0 to 1.0)
+    double              m_readPos           = 0.0;
+    double              m_splicePos         = 0.0;
+    bool                m_inSplice          = false;
+    float               m_splicePhase       = 0.0f;
 
     float               m_targetPitchRatio  = 1.0f;
     float               m_currentPitchRatio = 1.0f;
