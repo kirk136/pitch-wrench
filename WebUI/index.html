@@ -37,7 +37,7 @@
   <!-- ── Main panel ─────────────────────────────────────────────── -->
   <main class="main-panel">
 
-    <!-- Power section -->
+    <!-- Power section (absolute to keep symmetry) -->
     <section class="power-section">
       <div class="power-label">PWR</div>
       <button class="power-btn active" id="power-btn" aria-label="Power">
@@ -54,8 +54,8 @@
       </div>
     </section>
 
-    <!-- Knob section -->
-    <section class="knob-section">
+    <!-- Main control section -->
+    <section class="center-section">
       <div class="knob-label">SEMITONES</div>
 
       <div class="knob-rig" id="knob-rig">
@@ -78,36 +78,16 @@
       </div>
     </section>
 
-    <!-- Right section: Fine-tune & Mix -->
-    <section class="right-section">
-      <div class="small-knobs-container">
-        <!-- Fine-tune -->
-        <div class="small-knob-group">
-          <div class="small-knob-label">FINE TUNE</div>
-          <div class="small-knob-rig" id="finetune-rig">
-            <div class="small-knob-outer">
-              <div class="small-knob-inner" id="finetune-dial">
-                <div class="small-knob-marker"></div>
-              </div>
-            </div>
-          </div>
-          <div class="small-val-display" id="finetune-val">0 ct</div>
-        </div>
-
-        <!-- Mix -->
-        <div class="small-knob-group">
-          <div class="small-knob-label">MIX</div>
-          <div class="small-knob-rig" id="mix-rig">
-            <div class="small-knob-outer">
-              <div class="small-knob-inner" id="mix-dial">
-                <div class="small-knob-marker"></div>
-              </div>
-            </div>
-          </div>
-          <div class="small-val-display" id="mix-val">100 %</div>
-        </div>
+    <!-- Glide slider section below the main knob -->
+    <section class="glide-section">
+      <div class="glide-header">
+        <span class="glide-label">GLIDE</span>
+        <span class="glide-val" id="glide-val">5 ms</span>
       </div>
-      <div class="version-tag">v1.1</div>
+      <div class="glide-track-wrapper">
+        <input type="range" id="glide-slider" class="glide-slider" min="0" max="1000" value="0">
+        <div class="glide-track-fill" id="glide-fill"></div>
+      </div>
     </section>
 
   </main>

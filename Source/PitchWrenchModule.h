@@ -14,10 +14,9 @@ namespace PitchWrench {
 
 // ── Stato serializzabile ──────────────────────────────────────────────────────
 struct ModuleState {
-    uint32_t stateVersion = 2; // version bumped to 2 for new parameters
+    uint32_t stateVersion = 3; // version bumped to 3 for Glide parameter
     float    semitones    = 0.0f;
-    float    fineTune     = 0.0f;
-    float    mix          = 1.0f;
+    float    glide        = 5.0f;
     bool     enabled      = true;
     int      uiScale      = 1;   // 0=Small, 1=Medium, 2=Large
 };
@@ -45,8 +44,7 @@ public:
     void prepare(double sampleRate, int maxBlockSize) override {
         m_dsp.prepare(sampleRate, maxBlockSize);
         m_dsp.setPitchSemitones(m_semitones.load(std::memory_order_relaxed));
-        m_dsp.setFineTune(m_fineTune.load(std::memory_order_relaxed));
-        m_dsp.setMix(m_mix.load(std::memory_order_relaxed));
+        m_dsp.setGlideTimeMs(m_glide.load(std::memory_order_relaxed));
         m_dsp.setEnabled(m_enabled.load(std::memory_order_relaxed) >= 0.5f);
         m_prepared = true;
     }
@@ -74,8 +72,7 @@ public:
 
         // Sync parametri atomici → DSP (lettura relaxed: ok, DSP smoother inside)
         m_dsp.setPitchSemitones(m_semitones.load(std::memory_order_relaxed));
-        m_dsp.setFineTune(m_fineTune.load(std::memory_order_relaxed));
-        m_dsp.setMix(m_mix.load(std::memory_order_relaxed));
+        m_dsp.setGlideTimeMs(m_glide.load(std::memory_order_relaxed));
         m_dsp.setEnabled(m_enabled.load(std::memory_order_relaxed) >= 0.5f);
 
         // Processa il primo canale
@@ -99,14 +96,9 @@ public:
                     denormalizeSemitones(normalizedValue),
                     std::memory_order_relaxed);
                 break;
-            case kFineTune:
-                m_fineTune.store(
-                    denormalizeFineTune(normalizedValue),
-                    std::memory_order_relaxed);
-                break;
-            case kMix:
-                m_mix.store(
-                    denormalizeMix(normalizedValue),
+            case kGlide:
+                m_glide.store(
+                    denormalizeGlide(normalizedValue),
                     std::memory_order_relaxed);
                 break;
             case kEnabled:
@@ -127,10 +119,8 @@ public:
         switch (paramIndex) {
             case kSemitones: return normalizeSemitones(
                                  m_semitones.load(std::memory_order_relaxed));
-            case kFineTune:  return normalizeFineTune(
-                                 m_fineTune.load(std::memory_order_relaxed));
-            case kMix:       return normalizeMix(
-                                 m_mix.load(std::memory_order_relaxed));
+            case kGlide:     return normalizeGlide(
+                                 m_glide.load(std::memory_order_relaxed));
             case kEnabled:   return m_enabled.load(std::memory_order_relaxed);
             case kUiScale:   return m_uiScale.load(std::memory_order_relaxed) / 2.0f;
             default:         return 0.0f;
@@ -141,11 +131,8 @@ public:
     float getSemitonesRaw() const {
         return m_semitones.load(std::memory_order_relaxed);
     }
-    float getFineTuneRaw() const {
-        return m_fineTune.load(std::memory_order_relaxed);
-    }
-    float getMixRaw() const {
-        return m_mix.load(std::memory_order_relaxed);
+    float getGlideRaw() const {
+        return m_glide.load(std::memory_order_relaxed);
     }
 
     int getLatencySamples() const {
@@ -156,8 +143,7 @@ public:
     void saveState(std::vector<uint8_t>& dest) override {
         ModuleState s;
         s.semitones = m_semitones.load(std::memory_order_relaxed);
-        s.fineTune  = m_fineTune.load(std::memory_order_relaxed);
-        s.mix       = m_mix.load(std::memory_order_relaxed);
+        s.glide     = m_glide.load(std::memory_order_relaxed);
         s.enabled   = m_enabled.load(std::memory_order_relaxed) >= 0.5f;
         s.uiScale   = static_cast<int>(m_uiScale.load(std::memory_order_relaxed));
 
@@ -171,23 +157,20 @@ public:
         ModuleState s;
         std::memcpy(&s, source.data(), sizeof(ModuleState));
 
-        if (s.stateVersion == 1) {
-            // Migrazione da v1
-            s.fineTune = 0.0f;
-            s.mix = 1.0f;
-        } else if (s.stateVersion != 2) {
+        if (s.stateVersion == 1 || s.stateVersion == 2) {
+            // Migrazione da v1/v2
+            s.glide = 5.0f;
+        } else if (s.stateVersion != 3) {
             return; // versione non supportata
         }
 
         // Validazione range
         s.semitones = std::clamp(s.semitones, ParamRange::SemitonesMin, ParamRange::SemitonesMax);
-        s.fineTune  = std::clamp(s.fineTune, ParamRange::FineTuneMin, ParamRange::FineTuneMax);
-        s.mix       = std::clamp(s.mix, ParamRange::MixMin, ParamRange::MixMax);
+        s.glide     = std::clamp(s.glide, ParamRange::GlideMin, ParamRange::GlideMax);
         s.uiScale   = std::clamp(s.uiScale, 0, 2);
 
         m_semitones.store(s.semitones, std::memory_order_relaxed);
-        m_fineTune.store(s.fineTune, std::memory_order_relaxed);
-        m_mix.store(s.mix, std::memory_order_relaxed);
+        m_glide.store(s.glide, std::memory_order_relaxed);
         m_enabled.store(s.enabled ? 1.0f : 0.0f, std::memory_order_relaxed);
         m_uiScale.store(static_cast<float>(s.uiScale), std::memory_order_relaxed);
     }
@@ -197,8 +180,7 @@ private:
 
     // Thread-safe parameters (scritti dal control thread, letti dall'audio thread)
     std::atomic<float> m_semitones { 0.0f };
-    std::atomic<float> m_fineTune  { 0.0f };
-    std::atomic<float> m_mix       { 1.0f };
+    std::atomic<float> m_glide     { 5.0f };
     std::atomic<float> m_enabled   { 1.0f };
     std::atomic<float> m_uiScale   { 1.0f };
 

@@ -59,8 +59,7 @@ PitchWrenchEditor::PitchWrenchEditor(PitchWrenchProcessor& p)
                     
                     juce::String paramID = "";
                     if (paramName == "semitones") paramID = ParamID::Semitones;
-                    else if (paramName == "fineTune") paramID = ParamID::FineTune;
-                    else if (paramName == "mix") paramID = ParamID::Mix;
+                    else if (paramName == "glide") paramID = ParamID::Glide;
                     else if (paramName == "enabled") paramID = ParamID::Enabled;
                     else if (paramName == "uiScale") paramID = ParamID::UiScale;
 
@@ -75,8 +74,7 @@ PitchWrenchEditor::PitchWrenchEditor(PitchWrenchProcessor& p)
         .withEventListener("ready", [this](const juce::var&) {
             m_webReady = true;
             updateUIParameter("semitones", m_processor.getCurrentSemitones());
-            updateUIParameter("fineTune",  m_processor.getCurrentFineTune());
-            updateUIParameter("mix",       m_processor.getCurrentMix());
+            updateUIParameter("glide",     m_processor.getCurrentGlide());
             updateUIParameter("enabled",   m_processor.getAPVTS().getRawParameterValue(ParamID::Enabled)->load());
             updateUIParameter("uiScale",   m_processor.getAPVTS().getRawParameterValue(ParamID::UiScale)->load());
         }))
@@ -91,8 +89,7 @@ PitchWrenchEditor::PitchWrenchEditor(PitchWrenchProcessor& p)
 
     // Ascolta i parametri APVTS per notificare la UI
     m_processor.getAPVTS().addParameterListener(ParamID::Semitones, this);
-    m_processor.getAPVTS().addParameterListener(ParamID::FineTune,  this);
-    m_processor.getAPVTS().addParameterListener(ParamID::Mix,       this);
+    m_processor.getAPVTS().addParameterListener(ParamID::Glide,     this);
     m_processor.getAPVTS().addParameterListener(ParamID::Enabled,   this);
     m_processor.getAPVTS().addParameterListener(ParamID::UiScale,   this);
 
@@ -110,8 +107,7 @@ PitchWrenchEditor::~PitchWrenchEditor()
 {
     stopTimer();
     m_processor.getAPVTS().removeParameterListener(ParamID::Semitones, this);
-    m_processor.getAPVTS().removeParameterListener(ParamID::FineTune,  this);
-    m_processor.getAPVTS().removeParameterListener(ParamID::Mix,       this);
+    m_processor.getAPVTS().removeParameterListener(ParamID::Glide,     this);
     m_processor.getAPVTS().removeParameterListener(ParamID::Enabled,   this);
     m_processor.getAPVTS().removeParameterListener(ParamID::UiScale,   this);
 }
@@ -140,10 +136,8 @@ void PitchWrenchEditor::parameterChanged(const String& paramID, float newValue)
     // Chiamato sul message thread — safe per UI
     if (paramID == ParamID::Semitones)
         updateUIParameter("semitones", newValue);
-    else if (paramID == ParamID::FineTune)
-        updateUIParameter("fineTune", newValue);
-    else if (paramID == ParamID::Mix)
-        updateUIParameter("mix", newValue);
+    else if (paramID == ParamID::Glide)
+        updateUIParameter("glide", newValue);
     else if (paramID == ParamID::Enabled)
         updateUIParameter("enabled", newValue);
     else if (paramID == ParamID::UiScale) {

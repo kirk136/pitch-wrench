@@ -28,29 +28,19 @@ PitchWrenchProcessor::createParameterLayout()
             })
     ));
 
-    // FineTune: -100 to +100 cents
-    layout.add(std::make_unique<AudioParameterFloat>(
-        ParameterID{ParamID::FineTune, 1},
-        "Fine-Tune",
-        NormalisableRange<float>(ParamRange::FineTuneMin, ParamRange::FineTuneMax, 1.0f),
-        ParamRange::FineTuneDefault,
-        AudioParameterFloatAttributes{}
-            .withLabel("cents")
-            .withStringFromValueFunction([](float v, int) -> String {
-                return (v > 0 ? "+" : "") + String(static_cast<int>(v)) + " ct";
-            })
-    ));
+    // Glide: 5 to 2000 ms, skew for fine control at low values
+    NormalisableRange<float> glideRange(ParamRange::GlideMin, ParamRange::GlideMax);
+    glideRange.setSkewForCentre(250.0f);
 
-    // Mix: 0 to 1 (0 to 100%)
     layout.add(std::make_unique<AudioParameterFloat>(
-        ParameterID{ParamID::Mix, 1},
-        "Mix",
-        NormalisableRange<float>(ParamRange::MixMin, ParamRange::MixMax, 0.01f),
-        ParamRange::MixDefault,
+        ParameterID{ParamID::Glide, 1},
+        "Glide Time",
+        glideRange,
+        ParamRange::GlideDefault,
         AudioParameterFloatAttributes{}
-            .withLabel("%")
+            .withLabel("ms")
             .withStringFromValueFunction([](float v, int) -> String {
-                return String(static_cast<int>(v * 100.0f)) + " %";
+                return String(static_cast<int>(v)) + " ms";
             })
     ));
 
@@ -81,15 +71,13 @@ PitchWrenchProcessor::PitchWrenchProcessor()
 {
     // Registra listener per tutti i parametri
     m_apvts.addParameterListener(ParamID::Semitones, this);
-    m_apvts.addParameterListener(ParamID::FineTune,  this);
-    m_apvts.addParameterListener(ParamID::Mix,       this);
+    m_apvts.addParameterListener(ParamID::Glide,     this);
     m_apvts.addParameterListener(ParamID::Enabled,   this);
     m_apvts.addParameterListener(ParamID::UiScale,   this);
 
     // Puntatori raw (evita lookup by-string nel processBlock)
     m_pSemitones = m_apvts.getRawParameterValue(ParamID::Semitones);
-    m_pFineTune  = m_apvts.getRawParameterValue(ParamID::FineTune);
-    m_pMix       = m_apvts.getRawParameterValue(ParamID::Mix);
+    m_pGlide     = m_apvts.getRawParameterValue(ParamID::Glide);
     m_pEnabled   = m_apvts.getRawParameterValue(ParamID::Enabled);
     m_pUiScale   = m_apvts.getRawParameterValue(ParamID::UiScale);
 
@@ -99,8 +87,7 @@ PitchWrenchProcessor::PitchWrenchProcessor()
 PitchWrenchProcessor::~PitchWrenchProcessor()
 {
     m_apvts.removeParameterListener(ParamID::Semitones, this);
-    m_apvts.removeParameterListener(ParamID::FineTune,  this);
-    m_apvts.removeParameterListener(ParamID::Mix,       this);
+    m_apvts.removeParameterListener(ParamID::Glide,     this);
     m_apvts.removeParameterListener(ParamID::Enabled,   this);
     m_apvts.removeParameterListener(ParamID::UiScale,   this);
     m_module.shutdown();
@@ -115,10 +102,8 @@ void PitchWrenchProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     // Sync parametri iniziali
     m_module.setParameter(kSemitones,
         normalizeSemitones(m_pSemitones->load(std::memory_order_relaxed)));
-    m_module.setParameter(kFineTune,
-        normalizeFineTune(m_pFineTune->load(std::memory_order_relaxed)));
-    m_module.setParameter(kMix,
-        normalizeMix(m_pMix->load(std::memory_order_relaxed)));
+    m_module.setParameter(kGlide,
+        normalizeGlide(m_pGlide->load(std::memory_order_relaxed)));
     m_module.setParameter(kEnabled,
         m_pEnabled->load(std::memory_order_relaxed));
     m_module.setParameter(kUiScale,
@@ -147,10 +132,8 @@ void PitchWrenchProcessor::processBlock(AudioBuffer<float>& buffer,
     // Sync parametri (lettura atomic, senza lock, come in PaperCUT)
     m_module.setParameter(kSemitones,
         normalizeSemitones(m_pSemitones->load(std::memory_order_relaxed)));
-    m_module.setParameter(kFineTune,
-        normalizeFineTune(m_pFineTune->load(std::memory_order_relaxed)));
-    m_module.setParameter(kMix,
-        normalizeMix(m_pMix->load(std::memory_order_relaxed)));
+    m_module.setParameter(kGlide,
+        normalizeGlide(m_pGlide->load(std::memory_order_relaxed)));
     m_module.setParameter(kEnabled,
         m_pEnabled->load(std::memory_order_relaxed));
 

@@ -51,8 +51,7 @@ public:
 
     // Valore corrente (per la UI, non-realtime)
     float getCurrentSemitones() const { return m_module.getSemitonesRaw(); }
-    float getCurrentFineTune() const { return m_module.getFineTuneRaw(); }
-    float getCurrentMix() const { return m_module.getMixRaw(); }
+    float getCurrentGlide() const { return m_module.getGlideRaw(); }
 
 private:
     // ── Modulo DSP ────────────────────────────────────────────────────────────
@@ -63,8 +62,7 @@ private:
 
     // Puntatori raw ai parametri (performance: evita lookup by-string nel processBlock)
     std::atomic<float>* m_pSemitones = nullptr;
-    std::atomic<float>* m_pFineTune  = nullptr;
-    std::atomic<float>* m_pMix       = nullptr;
+    std::atomic<float>* m_pGlide     = nullptr;
     std::atomic<float>* m_pEnabled   = nullptr;
     std::atomic<float>* m_pUiScale   = nullptr;
 

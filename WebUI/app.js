@@ -12,8 +12,7 @@ const MAX_ANGLE     =  140;   // gradi (5 o'clock)
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
   semitones: 0,
-  fineTune:  0,
-  mix:       1.0,
+  glide:     5.0,
   enabled:   true,
   uiScale:   1,
 };
@@ -23,13 +22,9 @@ const knobRig    = document.getElementById('knob-rig');
 const knobDial   = document.getElementById('knob-dial');
 const valNumber  = document.getElementById('val-number');
 
-const fineTuneRig  = document.getElementById('finetune-rig');
-const fineTuneDial = document.getElementById('finetune-dial');
-const fineTuneVal  = document.getElementById('finetune-val');
-
-const mixRig       = document.getElementById('mix-rig');
-const mixDial      = document.getElementById('mix-dial');
-const mixVal       = document.getElementById('mix-val');
+const glideSlider = document.getElementById('glide-slider');
+const glideFill   = document.getElementById('glide-fill');
+const glideVal    = document.getElementById('glide-val');
 
 const powerBtn   = document.getElementById('power-btn');
 const powerLed   = document.getElementById('power-led');
@@ -129,16 +124,6 @@ knobRig.addEventListener('mousedown', (e) => {
   activeDrag.target = 'semitones';
 });
 
-fineTuneRig.addEventListener('mousedown', (e) => {
-  genericDragStart(e, state.fineTune);
-  activeDrag.target = 'fineTune';
-});
-
-mixRig.addEventListener('mousedown', (e) => {
-  genericDragStart(e, state.mix);
-  activeDrag.target = 'mix';
-});
-
 document.addEventListener('mousemove', (e) => {
   if (!activeDrag) return;
   const delta = activeDrag.startY - e.clientY;
@@ -147,16 +132,6 @@ document.addEventListener('mousemove', (e) => {
     const range = MAX_SEMITONES - MIN_SEMITONES;
     const pxRange = 180;
     setSemitones(activeDrag.startVal + (delta / pxRange) * range);
-  } 
-  else if (activeDrag.target === 'fineTune') {
-    const range = 200; // -100 to +100
-    const pxRange = 150;
-    setFineTune(activeDrag.startVal + (delta / pxRange) * range);
-  }
-  else if (activeDrag.target === 'mix') {
-    const range = 1.0; // 0 to 1
-    const pxRange = 150;
-    setMix(activeDrag.startVal + (delta / pxRange) * range);
   }
 });
 
@@ -174,28 +149,33 @@ knobRig.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 knobRig.addEventListener('dblclick', () => setSemitones(0));
-fineTuneRig.addEventListener('dblclick', () => setFineTune(0));
-mixRig.addEventListener('dblclick', () => setMix(1.0));
 
-// ── Nuovi parametri ───────────────────────────────────────────────────────────
-function setFineTune(val, sendToHost = true) {
-  val = Math.round(Math.max(-100, Math.min(100, val)));
-  state.fineTune = val;
-  // Map -100..100 to -140..140 deg
-  const angle = (val / 100) * 140;
-  fineTuneDial.style.transform = `rotate(${angle}deg)`;
-  fineTuneVal.textContent = (val > 0 ? '+' : '') + val + ' ct';
-  if (sendToHost) hostSetParameter('fineTune', val);
-}
+// ── Glide Slider ──────────────────────────────────────────────────────────────
+glideSlider.addEventListener('input', (e) => {
+  // slider values are 0..1000
+  // we want exponential curve from 5ms to 2000ms
+  const v = e.target.value / 1000.0;
+  // Use a simple cubic curve
+  const minG = 5.0;
+  const maxG = 2000.0;
+  const ms = minG + Math.pow(v, 3) * (maxG - minG);
+  setGlide(ms);
+});
 
-function setMix(val, sendToHost = true) {
-  val = Math.max(0.0, Math.min(1.0, val));
-  state.mix = val;
-  // Map 0..1 to -140..140 deg
-  const angle = MIN_ANGLE + val * (MAX_ANGLE - MIN_ANGLE);
-  mixDial.style.transform = `rotate(${angle}deg)`;
-  mixVal.textContent = Math.round(val * 100) + ' %';
-  if (sendToHost) hostSetParameter('mix', val);
+function setGlide(ms, sendToHost = true) {
+  ms = Math.max(5.0, Math.min(2000.0, ms));
+  state.glide = ms;
+  
+  // Inverse curve to set slider value
+  const minG = 5.0;
+  const maxG = 2000.0;
+  const v = Math.pow((ms - minG) / (maxG - minG), 1.0/3.0);
+  
+  glideSlider.value = Math.round(v * 1000);
+  glideFill.style.width = (v * 100) + '%';
+  glideVal.textContent = Math.round(ms) + ' ms';
+  
+  if (sendToHost) hostSetParameter('glide', ms);
 }
 
 // ── Power button ──────────────────────────────────────────────────────────────
@@ -239,8 +219,7 @@ window.pitchWrench = {
   updateParam(param, value) {
     switch (param) {
       case 'semitones': setSemitones(value, false);       break;
-      case 'fineTune':  setFineTune(value, false);        break;
-      case 'mix':       setMix(value, false);             break;
+      case 'glide':     setGlide(value, false);           break;
       case 'enabled':   setEnabled(value >= 0.5, false);  break;
       case 'uiScale':   applyScale(Math.round(value));    break;
     }
@@ -251,8 +230,7 @@ window.pitchWrench = {
 function init() {
   drawTicks();
   setSemitones(0, false);
-  setFineTune(0, false);
-  setMix(1.0, false);
+  setGlide(5.0, false);
   setEnabled(true, false);
 
   // Ridisegna i tick se la finestra cambia dimensione

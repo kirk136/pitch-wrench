@@ -56,6 +56,8 @@ public:
         const float bypassSamples = static_cast<float>(sampleRate * kBypassFadeMs * 0.001);
         m_bypassSmoothCoeff = std::exp(-1.0f / bypassSamples);
 
+        setGlideTimeMs(5.0f); // default instant glide
+
         reset();
         m_prepared = true;
     }
@@ -72,7 +74,6 @@ public:
 
         m_currentPitchRatio = 1.0f;
         m_bypassGain = 1.0f;
-        m_mixLevel = m_targetMix;
     }
 
     // ── Parametri ─────────────────────────────────────────────────────────────
@@ -82,15 +83,10 @@ public:
         updatePitchRatio();
     }
 
-    void setFineTune(float cents)
+    void setGlideTimeMs(float ms)
     {
-        m_fineTuneCents = cents;
-        updatePitchRatio();
-    }
-
-    void setMix(float mix)
-    {
-        m_targetMix = std::clamp(mix, 0.0f, 1.0f);
+        float samples = static_cast<float>(m_sampleRate * ms * 0.001);
+        m_smoothCoeff = std::exp(-1.0f / samples);
     }
 
     void setEnabled(bool enabled)
@@ -103,9 +99,8 @@ public:
 private:
     void updatePitchRatio()
     {
-        // pitch ratio = 2^((semitones + cents/100) / 12)
-        const float totalSemitones = m_semitones + (m_fineTuneCents / 100.0f);
-        m_targetPitchRatio = std::pow(2.0f, totalSemitones / 12.0f);
+        // pitch ratio = 2^(semitones / 12)
+        m_targetPitchRatio = std::pow(2.0f, m_semitones / 12.0f);
     }
 
     // ── Process — REALTIME SAFE ───────────────────────────────────────────────
@@ -174,13 +169,11 @@ public:
             // 5. Advance write pointer
             m_writePos = (m_writePos + 1) % m_bufferSize;
 
-            // 6. Mix and Bypass smooth
-            m_mixLevel = m_smoothCoeff * m_mixLevel + (1.0f - m_smoothCoeff) * m_targetMix;
+            // 6. Bypass smooth (Mix is always 100%)
             m_bypassGain = m_bypassSmoothCoeff * m_bypassGain
                           + (1.0f - m_bypassSmoothCoeff) * m_targetBypassGain;
             
-            const float finalWetGain = m_mixLevel * m_bypassGain;
-            output[i] = finalWetGain * wet + (1.0f - finalWetGain) * input[i];
+            output[i] = m_bypassGain * wet + (1.0f - m_bypassGain) * input[i];
         }
     }
 
@@ -291,10 +284,6 @@ private:
     float               m_smoothCoeff       = 0.0f;
 
     float               m_semitones         = 0.0f;
-    float               m_fineTuneCents     = 0.0f;
-
-    float               m_targetMix         = 1.0f;
-    float               m_mixLevel          = 1.0f;
 
     float               m_targetBypassGain  = 1.0f;
     float               m_bypassGain        = 1.0f;

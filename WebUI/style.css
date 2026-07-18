@@ -144,20 +144,24 @@ html, body {
 /* ── Main Panel ──────────────────────────────────────────────────────────────── */
 .main-panel {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 28px 32px;
-  gap: 24px;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
   flex: 1;
 }
 
 /* ── Power Section ───────────────────────────────────────────────────────────── */
 .power-section {
+  position: absolute;
+  left: 32px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  flex: 0 0 auto;
 }
 .power-label {
   font-size: 18px;
@@ -224,13 +228,13 @@ html, body {
 }
 .led.active ~ .led-label { color: var(--orange); }
 
-/* ── Knob Section ─────────────────────────────────────────────────────────────── */
-.knob-section {
+/* ── Main Control Section ─────────────────────────────────────────────────────── */
+.center-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  flex: 1;
+  margin-top: -10px;
 }
 .knob-label {
   font-size: 20px;
@@ -321,96 +325,58 @@ html, body {
 .val-number  { color: var(--orange); font-size: 32px; min-width: 50px; text-align: center; }
 .val-unit    { color: var(--text-dim); font-size: 16px; }
 
-/* ── Right Section (Fine-tune & Mix) ────────────────────────────────────────── */
-.right-section {
-  flex: 0 0 auto;
-  width: 120px;
+/* ── Glide Slider ────────────────────────────────────────────────────────────── */
+.glide-section {
+  position: absolute;
+  bottom: 24px;
+  right: 32px;
+  width: 140px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-}
-.small-knobs-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  align-items: center;
-}
-.small-knob-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 6px;
 }
-.small-knob-label {
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 2px;
-}
-.small-knob-rig {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.8);
-  cursor: grab;
-}
-.small-knob-rig:active { cursor: grabbing; }
-
-.small-knob-outer {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: var(--bg-grad);
-  border: 1px solid rgba(255,255,255,0.05);
-  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.1);
+.glide-header {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: baseline;
 }
-
-.small-knob-inner {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #2a2c30 0%, #1a1c1e 100%);
-  position: relative;
-  box-shadow: inset 0 2px 4px rgba(255,255,255,0.05), inset 0 -2px 4px rgba(0,0,0,0.8);
-  /* The rotation will be applied here */
-  transform: rotate(-140deg);
+.glide-label {
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
 }
-
-.small-knob-marker {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 12px;
-  background: var(--orange);
-  border-radius: 2px;
-  box-shadow: 0 0 6px var(--orange-glow);
-}
-
-.small-val-display {
+.glide-val {
   font-family: var(--font-mono);
   font-size: 14px;
   color: var(--orange);
-  background: var(--bg-deep);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
-  min-width: 50px;
-  text-align: center;
 }
 
-.version-tag {
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--text-dim);
-  opacity: 0.4;
+.glide-track-wrapper {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.glide-track-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: var(--orange);
+  border-radius: 3px;
+  width: 0%;
+  box-shadow: 0 0 6px var(--orange-glow);
+  pointer-events: none;
+}
+
+.glide-slider {
+  position: absolute;
+  inset: -6px -6px; /* Aumenta l'area di tap */
+  width: calc(100% + 12px);
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────────────── */
